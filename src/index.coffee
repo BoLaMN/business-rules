@@ -35,7 +35,7 @@ class PolicyRunCondition
       @process fn(@if)
 
   log: (msg) ->
-    return unless @debug 
+    return unless debug.enabled
 
     @logs.push msg
 
@@ -62,10 +62,8 @@ class PolicyRunCondition
 
   match: (tests = {}) ->
     where = @walk tests
-
     result = filter @data, where
     
-    @log JSON.stringify @data
     @log JSON.stringify where
 
     if typeof result isnt 'string'

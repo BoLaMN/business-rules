@@ -43,7 +43,7 @@ PolicyRunCondition = (function() {
   }
 
   PolicyRunCondition.prototype.log = function(msg) {
-    if (!this.debug) {
+    if (!debug.enabled) {
       return;
     }
     return this.logs.push(msg);
@@ -79,7 +79,6 @@ PolicyRunCondition = (function() {
     }
     where = this.walk(tests);
     result = filter(this.data, where);
-    this.log(JSON.stringify(this.data));
     this.log(JSON.stringify(where));
     if (typeof result !== 'string') {
       this.log('   > ' + JSON.stringify(result), where);
