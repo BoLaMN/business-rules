@@ -1,0 +1,24 @@
+{
+  "name": "json-business-rules",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "compile": "coffee --bare --no-header --output dist/ --compile src/"
+  },
+  "author": {
+    "name": "Nathan Bolam",
+    "url": "https://github.com/BoLaMN"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BoLaMN/json-business-rules"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "clone": "^2.1.1",
+    "debug": "^2.6.8",
+    "moment-timezone": "^0.5.13"
+  }
+}
