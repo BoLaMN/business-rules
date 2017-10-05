@@ -2,10 +2,10 @@ clone = require 'clone'
 moment = require 'moment-timezone'
 
 toFunction = require './to-function'
-walk = require '../walk'
+{ walk } = require '../utils'
 
 module.exports = (interpolate) ->
-    
+
   isUndefinedOrNull = (val) ->
     val is undefined or val is null
 

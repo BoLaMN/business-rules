@@ -6,7 +6,7 @@ moment = require('moment-timezone');
 
 toFunction = require('./to-function');
 
-walk = require('../walk');
+walk = require('../utils').walk;
 
 module.exports = function(interpolate) {
   var isUndefinedOrNull, preprocessDate;

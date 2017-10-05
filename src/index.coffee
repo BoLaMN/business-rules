@@ -12,92 +12,76 @@ class PolicyRunCondition
 
     @logs = []
 
-    @run 'before'
+    if @before
+      @log ' before '
 
-    if not @if
-      @run 'then'
-      return
+      @run @before
 
-    @log ' if'
-
-    fn = (item) =>
-      @match item
-
-    if Array.isArray @if.or
-      @process @if.or.some fn
-
-    else if Array.isArray @if.and
-      @process @if.and.every fn
-
-    else if Array.isArray @if
-      @process @if.every fn
+    if @if
+      @process @if
     else
-      @process fn(@if)
+      @run @then
+
+    if @after
+      @log ' after'
+
+      @run @after
 
   log: (msg) ->
     return unless debug.enabled
 
     @logs.push msg
 
-  process: (bool) =>
-    if bool
-      @run 'then' 
-    else
-      @run 'else'
+  process: (tests) =>
+    return false unless tests
 
-    @run 'after'
-
-  run: (type) ->
+    where = @walk tests
+    bool = @match where
+    type = if bool then 'then' else 'else'
     step = @[type]
 
-    if not step
-      return
+    return unless step
 
-    @log ' ' + type
+    @run step, bool
 
+  run: (step, match) ->
     if step.if
-      @log new PolicyRunCondition @data, step 
+      @log new PolicyRunCondition @data, step
     else
-      @outcomes step
+      @outcomes step, match
 
-  match: (tests = {}) ->
-    where = @walk tests
+  match: (where = {}) ->
     result = filter @data, where
-    
-    @log JSON.stringify where
+    bool = not not result
 
-    if typeof result isnt 'string'
-      @log '   > ' + JSON.stringify(result), where
-    else
-      @log '   > ' + result, where
+    @log '  if ' + JSON.stringify(where) + ' (' + bool + ')'
 
     result
 
   walk: (obj) ->
-    @interpolate.walk obj, (val, isKey) ->
+    @interpolate.walk obj, (val, isKey) =>
       return val unless isKey
       return val unless ops.indexOf(val) is -1
 
-      processed = val.startsWith 'context.' or 
-                  val.startsWith 'scope.'
+      return val if val.startsWith 'context.' or
+                    val.startsWith 'scope.'
 
-      if val[0] is '@' 
-        'context.' + val.substring 1
-      else if processed
-        val
-      else
-        'scope.' + val
+      if val[0] is '@'
+        return 'context.' + val.substring 1
+      else if @data[val]
+        return 'scope.' + val
 
-  outcomes: (outcomes = {}) ->
+      val
+
+  outcomes: (outcomes = {}, match) ->
     data = @walk outcomes
-    result = update data, @data 
 
-    if typeof result isnt 'string'
-      @log '   > ' + JSON.stringify(result), data
+    if typeof data isnt 'string'
+      @log '  then ' + JSON.stringify(data)
     else
-      @log '   > ' + result, data
+      @log '  then ' + data
 
-    result
+    @log '  transaction ' + JSON.stringify update @data, match, data
 
 class PolicyRun
   constructor: (conditions, data) ->
@@ -106,7 +90,7 @@ class PolicyRun
       m = data.context.id + ':\n'
       m += 'data\n'
       m += ' context\n'
-      m += @objToString data.context 
+      m += @objToString data.context
       m += ' scope\n'
       m += @objToString data.scope
       m += 'conditions\n'
@@ -119,7 +103,7 @@ class PolicyRun
 
       m += 'result\n'
       m += ' context\n'
-      m += @objToString data.context 
+      m += @objToString data.context
       m += ' scope\n'
       m += @objToString data.scope
 
@@ -158,8 +142,11 @@ class PolicyRun
 
     m
 
-module.exports = (conditions, scope = {}, context = {}) ->  
+run = (conditions, scope = {}, context = {}) ->
   if not Array.isArray(conditions) or not conditions.length
     return context
 
   new PolicyRun conditions, { context, scope }
+
+module.exports = run
+module.exports.PolicyRun = PolicyRun

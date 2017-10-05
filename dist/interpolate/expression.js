@@ -1,6 +1,6 @@
 var Expression, parse, props, ref, unique;
 
-ref = require('./utils'), props = ref.props, unique = ref.unique;
+ref = require('../utils'), props = ref.props, unique = ref.unique;
 
 parse = require('./cson').parse;
 

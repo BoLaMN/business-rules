@@ -1,4 +1,4 @@
-{ props } = require './utils'
+{ props } = require '../utils'
 
 toFunction = (obj) ->
   switch {}.toString.call obj

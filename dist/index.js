@@ -1,4 +1,4 @@
-var Interpolate, PolicyRun, PolicyRunCondition, debug, filter, ops, update,
+var Interpolate, PolicyRun, PolicyRunCondition, debug, filter, ops, run, update,
   bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
   hasProp = {}.hasOwnProperty;
 
@@ -14,31 +14,23 @@ Interpolate = require('./interpolate');
 
 PolicyRunCondition = (function() {
   function PolicyRunCondition(data1, arg) {
-    var fn;
     this.data = data1;
     this.description = arg.description, this.before = arg.before, this["if"] = arg["if"], this.then = arg.then, this["else"] = arg["else"];
     this.process = bind(this.process, this);
     this.interpolate = new Interpolate(this.data);
     this.logs = [];
-    this.run('before');
-    if (!this["if"]) {
-      this.run('then');
-      return;
+    if (this.before) {
+      this.log(' before ');
+      this.run(this.before);
     }
-    this.log(' if');
-    fn = (function(_this) {
-      return function(item) {
-        return _this.match(item);
-      };
-    })(this);
-    if (Array.isArray(this["if"].or)) {
-      this.process(this["if"].or.some(fn));
-    } else if (Array.isArray(this["if"].and)) {
-      this.process(this["if"].and.every(fn));
-    } else if (Array.isArray(this["if"])) {
-      this.process(this["if"].every(fn));
+    if (this["if"]) {
+      this.process(this["if"]);
     } else {
-      this.process(fn(this["if"]));
+      this.run(this.then);
+    }
+    if (this.after) {
+      this.log(' after');
+      this.run(this.after);
     }
   }
 
@@ -49,78 +41,74 @@ PolicyRunCondition = (function() {
     return this.logs.push(msg);
   };
 
-  PolicyRunCondition.prototype.process = function(bool) {
-    if (bool) {
-      this.run('then');
-    } else {
-      this.run('else');
+  PolicyRunCondition.prototype.process = function(tests) {
+    var bool, step, type, where;
+    if (!tests) {
+      return false;
     }
-    return this.run('after');
-  };
-
-  PolicyRunCondition.prototype.run = function(type) {
-    var step;
+    where = this.walk(tests);
+    bool = this.match(where);
+    type = bool ? 'then' : 'else';
     step = this[type];
     if (!step) {
       return;
     }
-    this.log(' ' + type);
+    return this.run(step, bool);
+  };
+
+  PolicyRunCondition.prototype.run = function(step, match) {
     if (step["if"]) {
       return this.log(new PolicyRunCondition(this.data, step));
     } else {
-      return this.outcomes(step);
+      return this.outcomes(step, match);
     }
   };
 
-  PolicyRunCondition.prototype.match = function(tests) {
-    var result, where;
-    if (tests == null) {
-      tests = {};
+  PolicyRunCondition.prototype.match = function(where) {
+    var bool, result;
+    if (where == null) {
+      where = {};
     }
-    where = this.walk(tests);
     result = filter(this.data, where);
-    this.log(JSON.stringify(where));
-    if (typeof result !== 'string') {
-      this.log('   > ' + JSON.stringify(result), where);
-    } else {
-      this.log('   > ' + result, where);
-    }
+    bool = !!result;
+    this.log('  if ' + JSON.stringify(where) + ' (' + bool + ')');
     return result;
   };
 
   PolicyRunCondition.prototype.walk = function(obj) {
-    return this.interpolate.walk(obj, function(val, isKey) {
-      var processed;
-      if (!isKey) {
+    return this.interpolate.walk(obj, (function(_this) {
+      return function(val, isKey) {
+        if (!isKey) {
+          return val;
+        }
+        if (ops.indexOf(val) !== -1) {
+          return val;
+        }
+        if (val.startsWith('context.' || val.startsWith('scope.'))) {
+          return val;
+        }
+        if (val[0] === '@') {
+          return 'context.' + val.substring(1);
+        } else if (_this.data[val]) {
+          return 'scope.' + val;
+        }
         return val;
-      }
-      if (ops.indexOf(val) !== -1) {
-        return val;
-      }
-      processed = val.startsWith('context.' || val.startsWith('scope.'));
-      if (val[0] === '@') {
-        return 'context.' + val.substring(1);
-      } else if (processed) {
-        return val;
-      } else {
-        return 'scope.' + val;
-      }
-    });
+      };
+    })(this));
   };
 
-  PolicyRunCondition.prototype.outcomes = function(outcomes) {
-    var data, result;
+  PolicyRunCondition.prototype.outcomes = function(outcomes, match) {
+    var data;
     if (outcomes == null) {
       outcomes = {};
     }
     data = this.walk(outcomes);
-    result = update(data, this.data);
-    if (typeof result !== 'string') {
-      this.log('   > ' + JSON.stringify(result), data);
+    if (typeof data !== 'string') {
+      this.log('  then ' + JSON.stringify(data));
     } else {
-      this.log('   > ' + result, data);
+      this.log('  then ' + data);
     }
-    return result;
+    return this.log('  transaction ' + JSON.stringify(update(this.data, match, data)));
   };
 
   return PolicyRunCondition;
@@ -199,7 +187,7 @@ PolicyRun = (function() {
 
 })();
 
-module.exports = function(conditions, scope, context) {
+run = function(conditions, scope, context) {
   if (scope == null) {
     scope = {};
   }
@@ -214,3 +202,7 @@ module.exports = function(conditions, scope, context) {
     scope: scope
   });
 };
+
+module.exports = run;
+
+module.exports.PolicyRun = PolicyRun;

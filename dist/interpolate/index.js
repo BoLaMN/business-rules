@@ -1,4 +1,4 @@
-var Interpolate, debug, expression, filters, parse, ref, unique, walk;
+var Interpolate, debug, expression, filters, ref, unique, walk;
 
 debug = require('debug')('rules:interpolate');
 
@@ -6,16 +6,18 @@ expression = require('./expression');
 
 filters = require('./filters');
 
-walk = require('../walk');
-
-ref = require('./utils'), unique = ref.unique, parse = ref.parse;
+ref = require('../utils'), unique = ref.unique, walk = ref.walk;
 
 Interpolate = (function() {
   function Interpolate(arg) {
     var filters;
     this.scope = arg.scope, this.context = arg.context, filters = arg.filters;
     this._filters = filters;
-    this.match = new RegExp('\{{2,3}([^\{]*?\|.*?)\}{2,3}', 'g');
+    this.re = {
+      match: new RegExp('\{{2,3}([^\{]*?\|.*?)\}{2,3}', 'g'),
+      filter: new RegExp("{([^\"|]*)}|\"([^\"|:]*)\"|'([^'|]*)'|([^\t(,|:)]+)", 'g'),
+      split: new RegExp(' *\\| *')
+    };
   }
 
   Interpolate.filters = {};
@@ -24,18 +26,14 @@ Interpolate = (function() {
 
   Interpolate.prototype.matches = function(input) {
     var test;
-    test = new RegExp(this.match.source);
+    test = new RegExp(this.re.match.source);
     return !!test.exec(input);
   };
 
   Interpolate.prototype._matches = function(input) {
-    var matches, test;
-    test = new RegExp(this.match.source);
-    matches = test.exec(input);
-    if (!matches) {
-      return [];
-    }
-    return matches;
+    var test;
+    test = new RegExp(this.re.match.source);
+    return test.exec(input) || [];
   };
 
   Interpolate.template = function(name, template) {
@@ -48,6 +46,18 @@ Interpolate = (function() {
     return this;
   };
 
+  Interpolate.prototype.parse = function(types, fn) {
+    return types.split(this.re.split).forEach((function(_this) {
+      return function(call) {
+        var args, name, parts;
+        parts = call.match(_this.re.filter);
+        name = parts.shift().trim();
+        args = parts.map(_this.expr);
+        return fn(name, args.slice());
+      };
+    })(this));
+  };
+
   Interpolate.prototype.filter = function(val, types) {
     var fns;
     if (types == null) {
@@ -57,43 +67,47 @@ Interpolate = (function() {
       return val;
     }
     fns = this._filters || this.constructor.filters;
-    filters = parse(types.join('|'), this.scope, this.context);
-    filters.forEach((function(_this) {
-      return function(f) {
-        var args, fn, name;
-        name = f.name.trim();
+    this.parse(types.join('|'), (function(_this) {
+      return function(name, args) {
+        var fn;
         fn = fns[name];
-        args = f.args.slice();
-        args.unshift(val);
         if (!fn) {
           return;
         }
+        args.unshift(val);
         return val = fn.apply(_this, args);
       };
     })(this));
     return val;
   };
 
-  Interpolate.prototype.exec = function(input) {
-    var e, expr, fn, parts, val;
-    parts = this.split(input);
-    expr = parts.shift();
+  Interpolate.prototype.expr = function(expr) {
+    var e, fn, val;
     fn = new expression(expr);
     try {
       val = fn.exec(this.scope, this.context);
     } catch (error) {
       e = error;
-      debug(e.message);
+      console.error(expr, e.message);
+      val = expr;
     }
+    return val;
+  };
+
+  Interpolate.prototype.exec = function(input) {
+    var expr, parts, val;
+    parts = this.split(input);
+    expr = parts.shift();
+    val = this.expr(expr);
     return this.filter(val, parts);
   };
 
   Interpolate.prototype.has = function(input) {
-    return input.search(this.match) > -1;
+    return input.search(this.re.match) > -1;
   };
 
   Interpolate.prototype.replace = function(input) {
-    return input.replace(this.match, (function(_this) {
+    return input.replace(this.re.match, (function(_this) {
       return function(_, match) {
         return _this.exec(match);
       };
@@ -155,7 +169,7 @@ Interpolate = (function() {
     var expr, index, m, parts, results;
     index = 0;
     results = [];
-    while (m = this.match.exec(str)) {
+    while (m = this.re.match.exec(str)) {
       parts = this.split(m[1]);
       expr = parts.shift();
       filters = parts.join('|');

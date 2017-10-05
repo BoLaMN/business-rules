@@ -1,4 +1,4 @@
-{ props, unique } = require './utils'
+{ props, unique } = require '../utils'
 { parse } = require './cson'
 
 class Expression
@@ -21,7 +21,7 @@ class Expression
       return @cache[str]
 
     args = props.slice()
-    args.push 'return ' + parse str 
+    args.push 'return ' + parse str
 
     fn = Function.apply null, args
 
@@ -30,7 +30,7 @@ class Expression
     fn
 
   exec: (scope = {}, context) ->
-    args = @values scope, @props 
+    args = @values scope, @props
     @fn.apply context, args
 
   toString: ->

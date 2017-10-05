@@ -1,34 +1,30 @@
 debug = require('debug') 'rules:interpolate'
 
-expression = require './expression' 
+expression = require './expression'
 filters = require './filters'
 
-walk = require '../walk'
-
-{ unique, parse } = require './utils' 
+{ unique, walk } = require '../utils'
 
 class Interpolate
   constructor: ({ @scope, @context, filters }) ->
     @_filters = filters
 
-    @match = new RegExp '\{{2,3}([^\{]*?\|.*?)\}{2,3}', 'g'
+    @re =
+      match: new RegExp '\{{2,3}([^\{]*?\|.*?)\}{2,3}', 'g'
+      filter: new RegExp """{([^"|]*)}|"([^"|:]*)"|'([^'|]*)'|([^\t(,|:)]+)""", 'g'
+      split: new RegExp ' *\\| *'
 
   @filters: {}
   @templates: {}
 
   matches: (input) ->
-    test = new RegExp @match.source
+    test = new RegExp @re.match.source
 
     not not test.exec input
 
   _matches: (input) ->
-    test = new RegExp @match.source
-    matches = test.exec(input)
-
-    if !matches
-      return []
-
-    matches
+    test = new RegExp @re.match.source
+    test.exec(input) or []
 
   @template: (name, template) ->
     @templates[name] = template
@@ -38,45 +34,56 @@ class Interpolate
     @filters[name] = fn
     @
 
+  parse: (types, fn) ->
+    types.split(@re.split).forEach (call) =>
+      parts = call.match @re.filter
+
+      name = parts.shift().trim()
+      args = parts.map @expr
+
+      fn name, args.slice()
+
   filter: (val, types = []) ->
-    if not types.length 
-      return val 
-      
+    if not types.length
+      return val
+
     fns = @_filters or @constructor.filters
-    filters = parse types.join('|'), @scope, @context
 
-    filters.forEach (f) =>
-      name = f.name.trim()
+    @parse types.join('|'), (name, args) =>
       fn = fns[name]
-
-      args = f.args.slice()
-      args.unshift val
 
       if not fn
         return
+
+      args.unshift val
 
       val = fn.apply @, args
 
     val
 
-  exec: (input) ->
-    parts = @split input
-
-    expr = parts.shift()
+  expr: (expr) ->
     fn = new expression expr
 
     try
-      val = fn.exec @scope, @context 
+      val = fn.exec @scope, @context
     catch e
-      debug e.message
+      console.error expr, e.message
+      val = expr
 
-    @filter val, parts 
+    val
+
+  exec: (input) ->
+    parts = @split input
+    expr = parts.shift()
+    val = @expr expr
+
+    @filter val, parts
 
   has: (input) ->
-    input.search(@match) > -1
+    input.search(@re.match) > -1
 
   replace: (input) ->
-    input.replace @match, (_, match) =>
+    input.replace @re.match, (_, match) =>
       @exec(match)
 
   value: (input) ->
@@ -117,7 +124,7 @@ class Interpolate
   each: (str, callback) ->
     index = 0
 
-    while m = @match.exec str
+    while m = @re.match.exec str
       parts = @split m[1]
 
       expr = parts.shift()

@@ -1,6 +1,6 @@
 var defaultToFunction, get, objectToFunction, props, regexpToFunction, stringToFunction, stripNested, toFunction;
 
-props = require('./utils').props;
+props = require('../utils').props;
 
 toFunction = function(obj) {
   switch ({}.toString.call(obj)) {

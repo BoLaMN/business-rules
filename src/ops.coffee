@@ -1,4 +1,6 @@
-filter = Object.keys require './filter/ops'
-update = Object.keys require './update/ops'
+ops = []
 
-module.exports = filter.concat update
+ops.push require('./filter').ops...
+ops.push require('./update').ops...
+
+module.exports = ops

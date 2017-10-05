@@ -1,7 +1,9 @@
-var filter, update;
+var ops;
 
-filter = Object.keys(require('./filter/ops'));
+ops = [];
 
-update = Object.keys(require('./update/ops'));
+ops.push.apply(ops, require('./filter').ops);
 
-module.exports = filter.concat(update);
+ops.push.apply(ops, require('./update').ops);
+
+module.exports = ops;
